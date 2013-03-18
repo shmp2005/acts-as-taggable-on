@@ -1,7 +1,11 @@
-module ActsAsTaggableOn
-  class Tag < ::ActiveRecord::Base
-    include ActsAsTaggableOn::Utils
+class Tag < ActiveRecord::Base
+end
 
+module ActsAsTaggableOn
+  class Tag < ::Tag
+    include ActsAsTaggableOn::ActiveRecord::Backports if ::ActiveRecord::VERSION::MAJOR < 3
+    include ActsAsTaggableOn::Utils
+      
     attr_accessible :name
 
     ### ASSOCIATIONS:
@@ -11,48 +15,30 @@ module ActsAsTaggableOn
     ### VALIDATIONS:
 
     validates_presence_of :name
-    validates_uniqueness_of :name, :if => :validates_name_uniqueness?
-    validates_length_of :name, :maximum => 255
-
-    # monkey patch this method if don't need name uniqueness validation
-    def validates_name_uniqueness?
-      true
-    end
+    validates_uniqueness_of :name
 
     ### SCOPES:
-
+    
     def self.named(name)
-      if ActsAsTaggableOn.strict_case_match
-        where(["name = #{binary}?", name])
-      else
-        where(["lower(name) = ?", name.downcase])
-      end
+      where(["name #{like_operator} ?", escape_like(name)])
     end
-
+  
     def self.named_any(list)
-      if ActsAsTaggableOn.strict_case_match
-        where(list.map { |tag| sanitize_sql(["name = #{binary}?", tag.to_s.mb_chars]) }.join(" OR "))
-      else
-        where(list.map { |tag| sanitize_sql(["lower(name) = ?", tag.to_s.mb_chars.downcase]) }.join(" OR "))
-      end
+      where(list.map { |tag| sanitize_sql(["name #{like_operator} ?", escape_like(tag.to_s)]) }.join(" OR "))
     end
-
+  
     def self.named_like(name)
-      where(["name #{like_operator} ? ESCAPE '!'", "%#{escape_like(name)}%"])
+      where(["name #{like_operator} ?", "%#{escape_like(name)}%"])
     end
 
     def self.named_like_any(list)
-      where(list.map { |tag| sanitize_sql(["name #{like_operator} ? ESCAPE '!'", "%#{escape_like(tag.to_s)}%"]) }.join(" OR "))
+      where(list.map { |tag| sanitize_sql(["name #{like_operator} ?", "%#{escape_like(tag.to_s)}%"]) }.join(" OR "))
     end
 
     ### CLASS METHODS:
 
     def self.find_or_create_with_like_by_name(name)
-      if (ActsAsTaggableOn.strict_case_match)
-        self.find_or_create_all_with_like_by_name([name]).first
-      else
-        named_like(name).first || create(:name => name)
-      end
+      named_like(name).first || create(:name => name)
     end
 
     def self.find_or_create_all_with_like_by_name(*list)
@@ -61,10 +47,10 @@ module ActsAsTaggableOn
       return [] if list.empty?
 
       existing_tags = Tag.named_any(list).all
-      new_tag_names = list.reject do |name|
-        name = comparable_name(name)
-        existing_tags.any? { |tag| comparable_name(tag.name) == name }
-      end
+      new_tag_names = list.reject do |name| 
+                        name = comparable_name(name)
+                        existing_tags.any? { |tag| comparable_name(tag.name) == name }
+                      end
       created_tags  = new_tag_names.map { |name| Tag.create(:name => name) }
 
       existing_tags + created_tags
@@ -83,17 +69,16 @@ module ActsAsTaggableOn
     def count
       read_attribute(:count).to_i
     end
-
+    
+    def safe_name
+      name.gsub(/[^a-zA-Z0-9]/, '')
+    end
+    
     class << self
-      private
-
-      def comparable_name(str)
-        str.mb_chars.downcase.to_s
-      end
-
-      def binary
-        /mysql/ === ActiveRecord::Base.connection_config[:adapter] ? "BINARY " : nil
-      end
+      private        
+        def comparable_name(str)
+          RUBY_VERSION >= "1.9" ? str.downcase : str.mb_chars.downcase
+        end
     end
   end
 end

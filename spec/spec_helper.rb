@@ -19,7 +19,6 @@ end
 
 Bundler.require
 require File.expand_path('../../lib/acts-as-taggable-on', __FILE__)
-require 'ammeter/init'
 
 unless [].respond_to?(:freq)
   class Array
@@ -31,8 +30,6 @@ unless [].respond_to?(:freq)
   end
 end
 
-# set adapter to use, default is sqlite3
-# to use an alternative adapter run => rake spec DB='postgresql'
 db_name = ENV['DB'] || 'sqlite3'
 database_yml = File.expand_path('../database.yml', __FILE__)
 
@@ -74,7 +71,7 @@ end
 
 def clean_database!
   models = [ActsAsTaggableOn::Tag, ActsAsTaggableOn::Tagging, TaggableModel, OtherTaggableModel, InheritingTaggableModel,
-            AlteredInheritingTaggableModel, TaggableUser, UntaggableModel, OrderedTaggableModel]
+            AlteredInheritingTaggableModel, TaggableUser, UntaggableModel]
   models.each do |model|
     ActiveRecord::Base.connection.execute "DELETE FROM #{model.table_name}"
   end
