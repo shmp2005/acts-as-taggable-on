@@ -3,6 +3,7 @@
 /pkg/*
 .bundle
 .rvmrc
+spec/*.*
 Gemfile.lock
 spec/database.yml
 tmp*.sw?
